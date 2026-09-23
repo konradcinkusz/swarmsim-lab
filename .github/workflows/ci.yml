@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Explicitly bash: GitHub then runs it with -eo pipefail, so a failure piped into `tee`
+# fails the step instead of vanishing.
+defaults:
+  run:
+    shell: bash
+
+# The swarmsim commit the lab is tested against. Moving it is a change like any other:
+# the tests say what the new commit broke. `uses:` cannot read an expression, so the
+# scenarios job repeats it.
+env:
+  SWARMSIM_REF: 56e150be669477db23a274a835503d41e65c8ee8
+
+jobs:
+  tests:
+    name: Lint & test (pytest against swarmsim)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # swarmsim's scenario runner is not pip-installable (EXPERIMENTS.md, F2): the lab
+      # imports it from a checkout, as swarmsim's own Action does.
+      - uses: actions/checkout@v7
+        with:
+          repository: konradcinkusz/swarmsim
+          ref: ${{ env.SWARMSIM_REF }}
+          path: swarmsim
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: ruff
+        run: ruff check . && ruff format --check .
+
+      - name: pytest
+        run: pytest -v
+
+  scenarios:
+    name: Lab scenarios on LabSwarm (swarmsim's Action)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The same check any repository can run on its own swarm: the scenarios fly inside
+      # this job, and nothing is sent anywhere. swarmsim's mutation check is for its own
+      # swarm only (F1); tests/test_lab_scenarios.py is the lab's.
+      - uses: konradcinkusz/swarmsim@56e150be669477db23a274a835503d41e65c8ee8
+        with:
+          scenarios: scenarios
+          sut: lab_swarm.swarm:LabSwarm
+          seeds: "3"
+
+  compare:
+    name: Reference vs LabSwarm, compared by SwarmApi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: konradcinkusz/swarmsim
+          ref: ${{ env.SWARMSIM_REF }}
+          path: swarmsim
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.x"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyyaml jsonschema
+
+      # Open mode, runs kept in memory: a throwaway API that lives as long as this job.
+      - name: Start SwarmApi
+        run: |
+          dotnet run --project swarmsim/backend/src/SwarmApi.Api \
+            --urls http://127.0.0.1:5080 > api.log 2>&1 &
+          for _ in $(seq 1 100); do  # the first run restores and builds: allow 5 minutes
+            if curl -fsS http://127.0.0.1:5080/health; then exit 0; fi
+            sleep 3
+          done
+          cat api.log
+          exit 1
+
+      - name: Store both runs and compare them
+        run: |
+          {
+            echo "## Reference vs LabSwarm (SwarmApi's comparison)"
+            echo
+            python -m tools.compare_swarms --api http://127.0.0.1:5080 \
+              --base reference --head lab_swarm.swarm:LabSwarm --seeds 3 \
+              scenarios swarmsim/scenarios
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: swarm-comparison
+          path: reports/
