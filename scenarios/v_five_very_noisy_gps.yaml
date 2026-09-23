@@ -1,0 +1,14 @@
+version: 1
+name: v_five_very_noisy_gps
+description: >
+  Five drones form a V from their pads, with 1.5 m of GPS noise on every axis. A plan
+  made from one noisy report per drone can pick the wrong leader.
+drones: 5
+duration_s: 120
+world: {gps_noise_std_m: 1.5}
+events:
+  - at_s: 1
+    mission: {type: formation, formation: v, waypoints: [[0, 0, 6], [40, 0, 6]], drone_count: 5, spacing_m: 3}
+assertions:
+  - min_separation: {min_m: 1.5}
+  - mission_completes: {within_s: 110}

@@ -1,6 +1,8 @@
 version: 1
 name: v_after_lanes
-description: Three drones fly lanes; 11 s in, a V formation mission supersedes it mid-air.
+description: >
+  Three drones fly lanes. 11 s in, a V formation mission supersedes the lanes in mid-air,
+  so the V forms from a moving row rather than from the pads.
 drones: 3
 duration_s: 100
 events:

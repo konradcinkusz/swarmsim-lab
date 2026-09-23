@@ -1,6 +1,9 @@
 version: 1
-name: v_leader_low_battery
-description: A three-drone V from four pads; the leader's battery drops mid-flight and the idle drone takes over.
+name: v_low_battery_drone_1
+description: >
+  A three-drone V from four pads. At 20 s drone_1's battery reads 15 %, and the idle
+  drone_4 must take its place. For the reference swarm drone_1 is the leader; for
+  LabSwarm it is a follower, since the scenario names a drone, not a role (finding F11).
 drones: 4
 duration_s: 120
 events:

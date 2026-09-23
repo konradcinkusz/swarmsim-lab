@@ -11,8 +11,8 @@ unchanged.
 * A drone that is disarmed is on the ground and not moving, so the ground averages its
   position reports. The average, not the latest noisy report, is what the plan starts
   from.
-* A low-battery drone's place is re-planned among the drones still flying plus the
-  idle drone that replaces it. A leader is succeeded by one of its followers. The
+* A leader low on battery is succeeded by one of its followers. The roles are
+  re-planned among the drones still flying plus the idle drone that joins. The
   reference instead hands the lead to the idle drone on its pad, and the whole
   formation turns back towards that pad (EXPERIMENTS.md, E0).
 
@@ -96,25 +96,21 @@ class FormationAwareSupervisor(MissionSupervisor):
         mission = self._mission
         plan = mission.plan
         members = [d for d in plan.drones if d != low] + [replacement]
-        if not plan.followers or any(d not in self._positions for d in members):
-            return super()._hand_over(low, replacement)  # lanes: the rest of the lane
-        (leader,) = plan.paths
+        if low not in plan.paths or not plan.followers:
+            # A follower's replacement takes its slot, as in the reference. Re-planning the
+            # slots measured no better (EXPERIMENTS.md, E3). Lanes: the rest of the lane.
+            return super()._hand_over(low, replacement)
+        if any(d not in self._positions for d in members):
+            return super()._hand_over(low, replacement)
+        progress = mission.progress.get(low)
+        path = plan.paths[low]
+        start = progress.waypoint_index if progress and progress.waypoint_index else 0
+        remaining = path[min(start, len(path) - 1) :]
         offsets = [offset for _, offset in plan.followers.values()]
         before = dict(plan.followers)
-        if low == leader:
-            progress = mission.progress.get(low)
-            path = plan.paths[low]
-            start = progress.waypoint_index if progress and progress.waypoint_index else 0
-            remaining = path[min(start, len(path) - 1) :]
-            roles = self._roles(members, offsets)
-        else:
-            remaining = plan.paths[leader]
-            roles = self._roles(members, offsets, leaders=[leader])
+        roles = self._roles(members, offsets)
         _apply(plan, roles, remaining)
-
-        actions: list = []
-        if roles.leader != leader:
-            actions.append(Assign(roles.leader, mission.mission_id, tuple(remaining)))
+        actions: list = [Assign(roles.leader, mission.mission_id, tuple(remaining))]
         actions += [
             Slot(drone, mission.mission_id, roles.leader, offset)
             for drone, offset in roles.slots.items()
@@ -122,9 +118,9 @@ class FormationAwareSupervisor(MissionSupervisor):
         ]
         return actions
 
-    def _roles(self, drones: list[str], offsets: list[Vector3], leaders=None) -> Roles:
+    def _roles(self, drones: list[str], offsets: list[Vector3]) -> Roles:
         positions = {d: self._positions[d] for d in drones}
-        return formation_roles(positions, offsets, self.cost, leaders, self.prefer)
+        return formation_roles(positions, offsets, self.cost, prefer=self.prefer)
 
     @staticmethod
     def _actions_for(plan: MissionPlan, keep: list) -> list:

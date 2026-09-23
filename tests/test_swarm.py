@@ -99,7 +99,7 @@ def test_a_leader_low_on_battery_is_succeeded_by_a_follower_not_by_the_drone_on_
     assert all(leader == assign.drone for leader, _ in slots.values())
 
 
-def test_a_follower_low_on_battery_is_replaced_and_the_leader_keeps_the_lead():
+def test_a_follower_low_on_battery_is_replaced_in_its_slot_and_the_leader_keeps_the_lead():
     supervisor = _supervisor()
     supervisor.start(_mission())
     _flying(

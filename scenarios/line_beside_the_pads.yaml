@@ -1,0 +1,14 @@
+version: 1
+name: line_beside_the_pads
+description: >
+  Five drones form a line whose first waypoint is 9 m beyond the end of their row of
+  pads. A leader from the middle of the row flies 15 m sideways to reach it, so the line
+  must be formed before the leader moves off.
+drones: 5
+duration_s: 90
+events:
+  - at_s: 1
+    mission: {type: formation, formation: line, waypoints: [[0, -9, 6], [40, -9, 6]], drone_count: 5, spacing_m: 3}
+assertions:
+  - min_separation: {min_m: 2.0}
+  - mission_completes: {within_s: 80}
