@@ -5,16 +5,21 @@ unchanged.
 
 * A formation's leader and slots go to the drones nearest to them
   (``planning.formation_roles``), not to the lowest ids.
+* The formation forms up before it flies. The leader's path starts straight above
+  where it stands, so its followers take their slots around a leader that is not yet
+  moving sideways.
+* A drone that is disarmed is on the ground and not moving, so the ground averages its
+  position reports. The average, not the latest noisy report, is what the plan starts
+  from.
 * A low-battery drone's place is re-planned among the drones still flying plus the
   idle drone that replaces it. A leader is succeeded by one of its followers. The
-  reference instead hands the lead to the idle drone on its pad, and the whole formation
-  turns back towards that pad (EXPERIMENTS.md, E0).
-* The ground passes every drone's reported position to the supervisor. The reference
-  supervisor never needed positions.
+  reference instead hands the lead to the idle drone on its pad, and the whole
+  formation turns back towards that pad (EXPERIMENTS.md, E0).
 
 The supervisor subclasses swarmsim's ``MissionSupervisor``. It re-plans after the
-reference ``start()`` and replaces its private ``_hand_over()``, because swarmsim has no
-planning hook (EXPERIMENTS.md, finding F8). This is the smallest seam there is.
+reference ``start()`` and replaces its private ``_hand_over()``, because swarmsim has
+no planning hook (EXPERIMENTS.md, finding F8). Its class attributes are the lab's
+decisions, and each mutant in mutants.py changes one of them.
 """
 
 from __future__ import annotations
@@ -38,17 +43,33 @@ from swarm_coordination.supervisor import (
 )
 from swarm_coordination.trajectory import Vector3
 
-from .planning import Roles, formation_roles, slot_assignment
+from .planning import Cost, Roles, distance, formation_roles
 
 
 class FormationAwareSupervisor(MissionSupervisor):
+    cost: Cost = staticmethod(distance)
+    prefer = staticmethod(max)  # among equally cheap plans: the one with the most clearance
+    form_up = True
+    average_parked = True
+
     def __init__(self, drones: Sequence[str], battery_threshold_pct: float = 20.0) -> None:
         super().__init__(drones, battery_threshold_pct)
         self._positions: dict[str, Vector3] = {}
+        self._parked: dict[str, tuple[Vector3, int]] = {}  # sum and count while disarmed
 
-    def observe_position(self, drone: str, position: Vector3 | None) -> None:
-        if position is not None and drone in self._battery:
+    def observe_position(self, drone: str, position: Vector3 | None, armed: bool) -> None:
+        """A drone's reported position. One report is only as good as the GPS behind it.
+        A disarmed drone is not moving, though, so its reports are averaged until it arms."""
+        if position is None or drone not in self._battery:
+            return
+        if armed or not self.average_parked:
+            self._parked.pop(drone, None)
             self._positions[drone] = position
+            return
+        total, count = self._parked.get(drone, (Vector3(0.0, 0.0, 0.0), 0))
+        total, count = total + position, count + 1
+        self._parked[drone] = (total, count)
+        self._positions[drone] = total.scale(1.0 / count)
 
     def start(self, mission: MissionMessage) -> list:
         actions = super().start(mission)
@@ -63,8 +84,12 @@ class FormationAwareSupervisor(MissionSupervisor):
         if any(d not in self._positions for d in drones):
             return actions  # not everyone has said where it is: keep the id-order plan
         offsets = FORMATIONS[mission.formation](len(drones) - 1, mission.spacing_m)
-        roles = formation_roles({d: self._positions[d] for d in drones}, offsets)
-        _apply(active.plan, roles, list(mission.waypoints))
+        roles = self._roles(drones, offsets)
+        path = list(mission.waypoints)
+        if self.form_up:
+            here = self._positions[roles.leader]
+            path.insert(0, Vector3(here.x, here.y, path[0].z))
+        _apply(active.plan, roles, path)
         return self._actions_for(active.plan, keep=actions)
 
     def _hand_over(self, low: str, replacement: str) -> list:
@@ -81,12 +106,10 @@ class FormationAwareSupervisor(MissionSupervisor):
             path = plan.paths[low]
             start = progress.waypoint_index if progress and progress.waypoint_index else 0
             remaining = path[min(start, len(path) - 1) :]
-            roles = formation_roles({d: self._positions[d] for d in members}, offsets)
+            roles = self._roles(members, offsets)
         else:
             remaining = plan.paths[leader]
-            followers = {d: self._positions[d] for d in members if d != leader}
-            slots, cost = slot_assignment(followers, self._positions[leader], offsets)
-            roles = Roles(leader, slots, cost)
+            roles = self._roles(members, offsets, leaders=[leader])
         _apply(plan, roles, remaining)
 
         actions: list = []
@@ -98,6 +121,10 @@ class FormationAwareSupervisor(MissionSupervisor):
             if before.get(drone) != (roles.leader, offset)
         ]
         return actions
+
+    def _roles(self, drones: list[str], offsets: list[Vector3], leaders=None) -> Roles:
+        positions = {d: self._positions[d] for d in drones}
+        return formation_roles(positions, offsets, self.cost, leaders, self.prefer)
 
     @staticmethod
     def _actions_for(plan: MissionPlan, keep: list) -> list:
@@ -128,7 +155,7 @@ class LabGround(ReferenceGround):
         if observe is not None:
             for message in inbox:
                 if message.topic == "telemetry":
-                    observe(message.sender, message.body["position"])
+                    observe(message.sender, message.body["position"], message.body["armed"])
         return super().step(now_s, inbox)
 
 
