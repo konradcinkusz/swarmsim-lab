@@ -1,0 +1,12 @@
+version: 1
+name: line_three_from_pads
+description: Three drones form a line straight from their pads, with GPS noise.
+drones: 3
+duration_s: 70
+world: {gps_noise_std_m: 0.3}
+events:
+  - at_s: 1
+    mission: {type: formation, formation: line, waypoints: [[0, 0, 6], [40, 0, 6]], drone_count: 3, spacing_m: 3}
+assertions:
+  - min_separation: {min_m: 2.0}
+  - mission_completes: {within_s: 60}
