@@ -1,0 +1,15 @@
+version: 1
+name: hold_then_new_mission
+description: The operator holds the swarm mid-lanes, then sends a line formation from where it hovers.
+drones: 3
+duration_s: 110
+events:
+  - at_s: 1
+    mission: {type: waypoint, waypoints: [[0, 0, 5], [40, 0, 5]], drone_count: 3, spacing_m: 3}
+  - at_s: 10
+    command: hold
+  - at_s: 20
+    mission: {type: formation, formation: line, waypoints: [[20, 3, 6], [60, 3, 6]], drone_count: 3, spacing_m: 3}
+assertions:
+  - min_separation: {min_m: 2.0}
+  - mission_completes: {within_s: 85}

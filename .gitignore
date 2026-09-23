@@ -1,0 +1,7 @@
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+# the swarmsim checkout CI (and perhaps you) puts here
+/swarmsim/
+# tools.compare_swarms output
+/reports/

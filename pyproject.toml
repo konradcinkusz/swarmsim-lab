@@ -1,0 +1,19 @@
+[project]
+name = "swarmsim-lab"
+version = "0.1.0"
+description = "A swarm tested and adapted with swarmsim's scenario instrument: an example"
+requires-python = ">=3.10"
+# swarmsim's swarm_coordination comes from a checkout, not an install (swarmsim_path.py).
+dependencies = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["swarmsim"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

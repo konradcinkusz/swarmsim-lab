@@ -1,0 +1,11 @@
+version: 1
+name: v_five_from_pads
+description: Five drones form a V straight from a row of pads.
+drones: 5
+duration_s: 90
+events:
+  - at_s: 1
+    mission: {type: formation, formation: v, waypoints: [[0, 0, 6], [40, 0, 6]], drone_count: 5, spacing_m: 3}
+assertions:
+  - min_separation: {min_m: 2.0}
+  - mission_completes: {within_s: 80}

@@ -1,0 +1,12 @@
+version: 1
+name: tight_lanes_gps_noise
+description: Lanes 2 m apart with 0.5 m GPS noise.
+drones: 4
+duration_s: 60
+world: {gps_noise_std_m: 0.5}
+events:
+  - at_s: 1
+    mission: {type: waypoint, waypoints: [[0, 0, 5], [30, 0, 5]], drone_count: 4, spacing_m: 2}
+assertions:
+  - min_separation: {min_m: 1.0}
+  - mission_completes: {within_s: 50}

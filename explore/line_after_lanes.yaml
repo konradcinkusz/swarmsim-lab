@@ -1,0 +1,13 @@
+version: 1
+name: line_after_lanes
+description: Lanes, then a line formation mid-air.
+drones: 3
+duration_s: 100
+events:
+  - at_s: 1
+    mission: {type: waypoint, waypoints: [[0, 0, 5], [30, 0, 5]], drone_count: 3, spacing_m: 3}
+  - at_s: 12
+    mission: {type: formation, formation: line, waypoints: [[20, 0, 6], [60, 0, 6]], drone_count: 3, spacing_m: 3}
+assertions:
+  - min_separation: {min_m: 2.0}
+  - mission_completes: {within_s: 80}
