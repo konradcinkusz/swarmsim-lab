@@ -1,0 +1,14 @@
+version: 1
+name: v_five_in_wind
+description: Five drones form a V from the pads in a crosswind with gusts and GPS noise.
+drones: 5
+duration_s: 100
+world:
+  wind: {mean_m_s: [1, 4, 0], gust_std_m_s: 1.5, gust_time_constant_s: 4}
+  gps_noise_std_m: 0.3
+events:
+  - at_s: 1
+    mission: {type: formation, formation: v, waypoints: [[0, 0, 6], [40, 0, 6]], drone_count: 5, spacing_m: 3}
+assertions:
+  - min_separation: {min_m: 1.5}
+  - mission_completes: {within_s: 90}

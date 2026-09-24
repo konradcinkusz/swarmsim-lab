@@ -1,6 +1,8 @@
 version: 1
 name: v_five_from_pads
-description: Five drones form a V straight from a row of pads.
+description: >
+  Five drones form a V straight from their row of pads. With the lowest id leading from
+  the end of the row, half of the V has to cross to the other side of it.
 drones: 5
 duration_s: 90
 events:

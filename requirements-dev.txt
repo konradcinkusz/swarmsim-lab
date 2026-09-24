@@ -1,5 +1,7 @@
 # The lab's own tools. swarmsim's scenario runner needs pyyaml and jsonschema.
 pytest>=8
-ruff>=0.6
+# CI runs `ruff format --check`, and formatting changes between ruff releases: pinned to
+# the release the code was formatted with. Move it on purpose, with a reformat.
+ruff==0.15.8
 pyyaml>=6
 jsonschema>=4.18

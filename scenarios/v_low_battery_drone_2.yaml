@@ -1,13 +1,15 @@
 version: 1
-name: v_leader_low_battery
-description: A three-drone V from four pads; the leader's battery drops mid-flight and the idle drone takes over.
+name: v_low_battery_drone_2
+description: >
+  The same V, but drone_2's battery drops. drone_2 leads LabSwarm's V, so a follower
+  must take over the lead while the idle drone_4 joins from its pad.
 drones: 4
 duration_s: 120
 events:
   - at_s: 1
     mission: {type: formation, formation: v, waypoints: [[0, 0, 6], [50, 0, 6]], drone_count: 3, spacing_m: 3}
   - at_s: 20
-    battery: {drone: drone_1, set_pct: 15}
+    battery: {drone: drone_2, set_pct: 15}
 assertions:
   - min_separation: {min_m: 2.0, from_s: 15}
   - no_task_below_battery: {threshold_pct: 20, grace_s: 3}

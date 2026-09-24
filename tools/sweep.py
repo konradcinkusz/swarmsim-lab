@@ -37,9 +37,13 @@ def load_sut(reference: str):
 
 
 def sweep(paths: list[str], suts: list, seeds: int, first_seed: int = 1) -> list[dict]:
+    specs = [load_scenario(path) for path in discover(paths)]
+    names = [spec.name for spec in specs]
+    twice = sorted({name for name in names if names.count(name) > 1})
+    if twice:  # as swarmsim's runner does: one name, one scenario
+        raise SystemExit(f"scenario name used twice: {', '.join(twice)}")
     rows = []
-    for path in discover(paths):
-        spec = load_scenario(path)
+    for spec in specs:
         for sut in suts:
             separations, times, failed, kinds = [], [], 0, set()
             for seed in range(first_seed, first_seed + seeds):

@@ -1,0 +1,17 @@
+version: 1
+name: v_low_battery_drone_1
+description: >
+  A three-drone V from four pads. At 20 s drone_1's battery reads 15 %, and the idle
+  drone_4 must take its place. For the reference swarm drone_1 is the leader; for
+  LabSwarm it is a follower, since the scenario names a drone, not a role (finding F11).
+drones: 4
+duration_s: 120
+events:
+  - at_s: 1
+    mission: {type: formation, formation: v, waypoints: [[0, 0, 6], [50, 0, 6]], drone_count: 3, spacing_m: 3}
+  - at_s: 20
+    battery: {drone: drone_1, set_pct: 15}
+assertions:
+  - min_separation: {min_m: 2.0, from_s: 15}
+  - no_task_below_battery: {threshold_pct: 20, grace_s: 3}
+  - mission_completes: {within_s: 110}

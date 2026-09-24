@@ -1,0 +1,142 @@
+{
+  "base": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "receivedAtUtc": "2026-09-23T10:28:39+00:00",
+    "label": "reference (reference)",
+    "submittedBy": null,
+    "sut": "reference",
+    "ok": false,
+    "counts": {
+      "passed": 12,
+      "failed": 4,
+      "xfail": 1,
+      "xpass": 1
+    },
+    "scenarioCount": 18,
+    "seedCount": 3,
+    "survivingMutants": []
+  },
+  "head": {
+    "id": "00000000-0000-0000-0000-000000000002",
+    "receivedAtUtc": "2026-09-23T10:28:39+00:00",
+    "label": "lab (lab_swarm.swarm:LabSwarm)",
+    "submittedBy": null,
+    "sut": "lab",
+    "ok": false,
+    "counts": {
+      "passed": 13,
+      "failed": 3,
+      "xfail": 1,
+      "xpass": 1
+    },
+    "scenarioCount": 18,
+    "seedCount": 3,
+    "survivingMutants": []
+  },
+  "scenarios": [
+    {
+      "name": "line_five_noisy_gps",
+      "baseOutcome": "xpass",
+      "headOutcome": "xfail",
+      "change": "fixed",
+      "measurements": [
+        {
+          "assertion": "min_separation",
+          "unit": "m",
+          "baseMean": 2.113,
+          "headMean": 1.995,
+          "delta": -0.118
+        },
+        {
+          "assertion": "mission_completes",
+          "unit": "s",
+          "baseMean": 40.6333,
+          "headMean": 49.3667,
+          "delta": 8.7334
+        }
+      ]
+    },
+    {
+      "name": "v_five_from_pads",
+      "baseOutcome": "failed",
+      "headOutcome": "passed",
+      "change": "fixed",
+      "measurements": [
+        {
+          "assertion": "min_separation",
+          "unit": "m",
+          "baseMean": 0.41,
+          "headMean": 3.031,
+          "delta": 2.621
+        },
+        {
+          "assertion": "mission_completes",
+          "unit": "s",
+          "baseMean": 36.8,
+          "headMean": 40.2,
+          "delta": 3.4
+        }
+      ]
+    },
+    {
+      "name": "formation_line",
+      "baseOutcome": "passed",
+      "headOutcome": "failed",
+      "change": "regressed",
+      "measurements": [
+        {
+          "assertion": "min_separation",
+          "unit": "m",
+          "baseMean": 2.121,
+          "headMean": 2.437,
+          "delta": 0.316
+        },
+        {
+          "assertion": "formation_error",
+          "unit": "m",
+          "baseMean": 2.2,
+          "headMean": 17.2,
+          "delta": 15
+        },
+        {
+          "assertion": "mission_completes",
+          "unit": "s",
+          "baseMean": 36.8,
+          "headMean": 40.2,
+          "delta": 3.4
+        },
+        {
+          "assertion": "all_landed",
+          "unit": "s",
+          "baseMean": 37.6,
+          "headMean": 41,
+          "delta": 3.4
+        }
+      ]
+    },
+    {
+      "name": "v_formation_from_pads",
+      "baseOutcome": "xfail",
+      "headOutcome": "xpass",
+      "change": "regressed",
+      "measurements": [
+        {
+          "assertion": "min_separation",
+          "unit": "m",
+          "baseMean": 0.482,
+          "headMean": 3.143,
+          "delta": 2.661
+        },
+        {
+          "assertion": "mission_completes",
+          "unit": "s",
+          "baseMean": 31.8,
+          "headMean": 33.7,
+          "delta": 1.9
+        }
+      ]
+    }
+  ],
+  "newSurvivors": [],
+  "noLongerSurviving": []
+}

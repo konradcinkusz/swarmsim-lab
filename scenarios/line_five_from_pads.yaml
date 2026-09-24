@@ -1,0 +1,15 @@
+version: 1
+name: line_five_from_pads
+description: >
+  Five drones form a line from their pads: swarmsim's formation_line, held to 2 m of
+  separation instead of 1.5 m, and without its formation_error check, which assumes
+  drone_1 leads (finding F3).
+drones: 5
+duration_s: 90
+events:
+  - at_s: 1
+    mission: {type: formation, formation: line, waypoints: [[0, 0, 6], [40, 0, 6]], drone_count: 5, spacing_m: 3}
+assertions:
+  - min_separation: {min_m: 2.0}
+  - mission_completes: {within_s: 75}
+  - all_landed: {by_s: 90}
