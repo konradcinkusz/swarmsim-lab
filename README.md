@@ -11,7 +11,8 @@ repository, to test a swarm that isn't swarmsim's and to change one that is.
 
 Everything is measured in swarmsim's L0 simulator. [EXPERIMENTS.md](EXPERIMENTS.md) is
 the lab notebook, one experiment per commit. It ends with twelve findings about adapting
-swarmsim, each with a proposed change.
+swarmsim. Eight became pull requests to swarmsim, and E5 moves the lab onto them: what
+the lab had worked around, it now uses.
 
 ## Four ways to use swarmsim from outside
 
@@ -41,24 +42,31 @@ class MySwarm:
 ```
 
 ```bash
-PYTHONPATH=../swarmsim/swarm_coordination \
-  python -m swarm_coordination.scenarios run ../swarmsim/scenarios --sut my_package:MySwarm --seeds 3
+pip install ../swarmsim/swarm_coordination pyyaml jsonschema
+python -m swarm_coordination.scenarios run ../swarmsim/scenarios --sut my_package:MySwarm \
+  --expect my_expectations.yaml --seeds 3
 ```
+
+The scenario files' `expect` describes swarmsim's reference swarm, not yours. A swarm's
+known limitations go in a file of its own, passed with `--expect`
+([`expectations/lab.yaml`](expectations/lab.yaml) is one).
 
 The worked example is [`lab_swarm/minimal.py`](lab_swarm/minimal.py), about 150 lines. It
 flies lanes and obeys operator commands, and has no formations and no battery policy.
-Against swarmsim's ten scenarios it passes the two lane scenarios. It fails the others
-exactly where it lacks something, and
-[`tests/test_minimal_swarm.py`](tests/test_minimal_swarm.py) pins each failure. Two of
-the failures turned out to be about the scenarios instead (EXPERIMENTS.md, E1, F9).
+Against swarmsim's ten scenarios it passes the two lane scenarios, and
+`operator_land_in_place` since swarmsim measures the distance travelled after the command
+(F9). It fails the others exactly where it lacks something, and
+[`tests/test_minimal_swarm.py`](tests/test_minimal_swarm.py) pins each failure.
 
 ### 2. Change the reference swarm
 
 swarmsim's reference swarm is plain Python behind `ReferenceSwarm`. It is a dataclass
 whose fields are the parts, so a variant is a subclass, or a `replace()` with one part
-swapped. [`lab_swarm/swarm.py`](lab_swarm/swarm.py) replaces the ground supervisor's
-formation planning; the drones fly swarmsim's controller unchanged. The planner
-[`lab_swarm/planning.py`](lab_swarm/planning.py) is pure and unit tested. It does four
+swapped, and its planning is a `planner=` function (F8).
+[`lab_swarm/swarm.py`](lab_swarm/swarm.py) plugs in a planner for formations, and keeps a
+supervisor subclass to average a parked drone's reports and to re-plan a leader's hand-over,
+which swarmsim has no seam for; the drones fly swarmsim's controller unchanged. The planner,
+[`lab_swarm/planning.py`](lab_swarm/planning.py), is pure and unit tested. It does four
 things:
 
 - chooses who leads and which slot each drone takes from where the drones are;
@@ -86,20 +94,23 @@ swarmsim's own suite, and three ideas after it were measured worse and dropped.
 ### 3. Write your own scenarios, and check that they have teeth
 
 [`scenarios/`](scenarios) holds the lab's eight scenarios, in swarmsim's schema. A known
-weakness is an `expect: fail` with its reason, not a deleted scenario.
+weakness is written down with its reason in the swarm's expectations file, not a deleted
+scenario.
 
-A scenario that no broken swarm fails proves nothing. swarmsim checks this with
-`--mutants`, but only for its own swarm. So the lab keeps its own set of mutants, in
-[`lab_swarm/mutants.py`](lab_swarm/mutants.py). Each one undoes one decision.
-[`tests/test_lab_scenarios.py`](tests/test_lab_scenarios.py) checks two things:
+A scenario that no broken swarm fails proves nothing. swarmsim checks this with its
+mutation check, and a swarm brings its own mutants with `--mutants-from` (F1). The lab's
+are in [`lab_swarm/mutants.py`](lab_swarm/mutants.py). Each one undoes one decision, and
+the last is the reference swarm, every decision undone at once.
+[`tests/test_lab_scenarios.py`](tests/test_lab_scenarios.py) and CI run swarmsim's check,
+which requires two things:
 
 - every mutant fails a scenario;
-- every scenario fails a mutant or the reference.
+- every scenario fails a mutant.
 
-swarmsim's assertions are a closed set. Where they cannot say what the lab means, the
-lab measures the trace in Python, in [`lab_swarm/metrics.py`](lab_swarm/metrics.py). One
-example is a formation's shape whoever leads; another is "stopped where the command
-found it".
+The lab's known limitations are in [`expectations/lab.yaml`](expectations/lab.yaml), and
+the reference swarm's, on the same scenarios, in
+[`expectations/reference.yaml`](expectations/reference.yaml). The scenario files carry
+none.
 
 ### 4. Run it in CI, and compare runs
 
@@ -107,42 +118,53 @@ swarmsim's root `action.yml` runs scenarios inside the caller's job and sends no
 anywhere. Pin it to a commit:
 
 ```yaml
-- uses: konradcinkusz/swarmsim@56e150be669477db23a274a835503d41e65c8ee8
+- uses: konradcinkusz/swarmsim@da0c6514b17ee7ab5b5a4f659f091bc64c6de831
   with:
     scenarios: scenarios
     sut: lab_swarm.swarm:LabSwarm
+    expect: expectations/lab.yaml
+    mutants-from: lab_swarm.mutants:MUTANTS
     seeds: "3"
 ```
 
+`include-swarmsim-scenarios: "true"` adds swarmsim's own scenarios, which the action carries
+(F5). CI flies them on LabSwarm in a second step, under the same expectations.
+
 To remember and compare runs, swarmsim's API stores reports and answers
 `GET /api/scenario-runs/compare`. [`tools/compare_swarms.py`](tools/compare_swarms.py)
-flies one suite against two swarms, stores both runs and prints the API's verdict. CI's
-`compare` job starts a throwaway API from the swarmsim checkout and does exactly that on
-every push. The comparison was built for two commits of one swarm. Across two swarms,
-five of the nine changes it reports are about the scenarios (EXPERIMENTS.md, E4).
+flies one suite against two swarms, each held to its own expectations, stores both runs
+and prints the API's verdict. CI's `compare` job starts a throwaway API from the swarmsim
+checkout and does exactly that on every push. The comparison was built for two commits of
+one swarm. Across two swarms with the scenario files' own `expect`, five of the nine
+changes it reported were about the scenarios (E4). With each swarm's expectations it
+reports one thing per scenario, and none of them a regression (E5).
 
 ## Setup
 
-swarmsim's scenario runner is not pip-installable (F2), so the lab imports it from a
-checkout. It finds the checkout at `$SWARMSIM_DIR`, `./swarmsim` or `../swarmsim`:
+swarmsim's scenario runner installs with pip (F2). The lab also wants a checkout, for
+swarmsim's scenarios, which are not in the package, and for its API. It finds the checkout
+at `$SWARMSIM_DIR`, `./swarmsim` or `../swarmsim`. Install the runner from the same
+checkout:
 
 ```bash
 git clone https://github.com/konradcinkusz/swarmsim ../swarmsim
-git -C ../swarmsim checkout 56e150be669477db23a274a835503d41e65c8ee8
-pip install -r requirements-dev.txt
+git -C ../swarmsim checkout da0c6514b17ee7ab5b5a4f659f091bc64c6de831
+pip install ../swarmsim/swarm_coordination -r requirements-dev.txt
 
-ruff check . && pytest                        # 37 tests, about 20 s
+ruff check . && pytest                        # 34 tests, about 20 s
 
 # the lab's scenarios on LabSwarm, the way CI's Action runs them
-PYTHONPATH=../swarmsim/swarm_coordination \
-  python -m swarm_coordination.scenarios run scenarios --sut lab_swarm.swarm:LabSwarm --seeds 3
+python -m swarm_coordination.scenarios run scenarios --sut lab_swarm.swarm:LabSwarm \
+  --expect expectations/lab.yaml --mutants-from lab_swarm.mutants:MUTANTS --seeds 3
 
 # closest approach and mission time, over many seeds, for several swarms
 python -m tools.sweep --sut reference --sut lab_swarm.swarm:LabSwarm --seeds 20 explore scenarios
 
 # two swarms through swarmsim's API (needs the .NET 8 SDK)
 dotnet run --project ../swarmsim/backend/src/SwarmApi.Api --urls http://127.0.0.1:5080 &
-python -m tools.compare_swarms --api http://127.0.0.1:5080 --head lab_swarm.swarm:LabSwarm \
+python -m tools.compare_swarms --api http://127.0.0.1:5080 \
+  --base reference --base-expect expectations/reference.yaml \
+  --head lab_swarm.swarm:LabSwarm --head-expect expectations/lab.yaml \
   scenarios ../swarmsim/scenarios
 ```
 
@@ -152,15 +174,15 @@ python -m tools.compare_swarms --api http://127.0.0.1:5080 --head lab_swarm.swar
 |---|---|
 | `lab_swarm/minimal.py` | E1: a swarm from scratch against the SUT protocol |
 | `lab_swarm/planning.py` | E2: who leads and who takes which slot. Pure, with the Hungarian algorithm and exact form-up clearances |
-| `lab_swarm/swarm.py` | E2: `LabSwarm`, the reference swarm with `FormationAwareSupervisor` |
-| `lab_swarm/mutants.py` | E3: `LabSwarm` with one decision undone, per mutant |
-| `lab_swarm/metrics.py` | Checks swarmsim's assertions can't make, measured from the trace |
+| `lab_swarm/swarm.py` | E2, E5: `LabSwarm`, the reference swarm with a formation planner and `FormationAwareSupervisor` |
+| `lab_swarm/mutants.py` | E3, E5: `LabSwarm` with one decision undone, per mutant, in the form swarmsim's `--mutants-from` takes |
+| `expectations/` | What LabSwarm and the reference swarm are each expected to fail (E5) |
 | `scenarios/` | The lab's scenarios, run by CI through swarmsim's Action |
 | `explore/` | E0's exploratory scenarios that E3 did not promote to `scenarios/` |
 | `tools/sweep.py` | Many seeds, several swarms: worst and median closest approach, mission time |
-| `tools/compare_swarms.py` | E4: two swarms, stored and compared by swarmsim's API |
+| `tools/compare_swarms.py` | E4, E5: two swarms, each held to its expectations, stored and compared by swarmsim's API |
 | `tests/` | Unit tests, the lab's mutation check, and swarmsim's suite on both swarms |
-| `swarmsim_path.py` | Finds the swarmsim checkout |
+| `swarmsim_path.py` | Finds the swarmsim checkout; imports its runner unless it is installed |
 | `EXPERIMENTS.md` | The notebook: every number, every dead end, twelve findings |
 
 ## Status

@@ -4,15 +4,6 @@ description: Five drones form a line from their pads with 1 m of GPS noise on ev
 drones: 5
 duration_s: 90
 world: {gps_noise_std_m: 1.0}
-expect: fail
-expect_reason: >
-  LabSwarm leads a line from the middle of the row, so its followers close in from both
-  sides. With 1 m of GPS noise, two of them come within 2 m on 12 of 20 seeds (worst
-  1.81 m). The reference leads from the end of the row, and its followers all move in
-  parallel: it fails 1 of 20 seeds (1.99 m). The fix is a form-up that waits until every
-  follower is in its slot, which needs swarmsim's DroneController to hold at a
-  waypoint. Leading from the end of the row instead keeps less margin without noise
-  (2.12 m against 2.44 m, EXPERIMENTS.md, E2b).
 events:
   - at_s: 1
     mission: {type: formation, formation: line, waypoints: [[0, 0, 6], [40, 0, 6]], drone_count: 5, spacing_m: 3}

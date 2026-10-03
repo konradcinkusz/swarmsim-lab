@@ -1,0 +1,20 @@
+# What LabSwarm is expected to fail, among the lab's scenarios and swarmsim's own.
+#
+# swarmsim's runner takes this with --expect (the Action's `expect` input), and it replaces
+# the `expect` in the scenario files, which describes swarmsim's reference swarm: a known
+# limitation belongs to a swarm, not to a scenario file (EXPERIMENTS.md, finding F4).
+version: 1
+expect_fail:
+  line_five_noisy_gps: >
+    LabSwarm leads a line from the middle of the row, so its followers close in from both
+    sides. With 1 m of GPS noise, two of them come within 2 m on 12 of 20 seeds (worst
+    1.81 m). The reference leads from the end of the row, and its followers all move in
+    parallel: it fails 1 of 20 seeds (1.99 m). The fix is a form-up that waits until every
+    follower is in its slot, which needs swarmsim's DroneController to hold at a
+    waypoint. Leading from the end of the row instead keeps less margin without noise
+    (2.12 m against 2.44 m, EXPERIMENTS.md, E2b).
+  follower_jammed_goes_home: >
+    The scenario jams drone_2 and drone_3 by name and expects them to be followers.
+    LabSwarm picks its leader from where the drones stand, and drone_2 leads a line from
+    three pads, so the scenario jams the leader and leaves drone_1, a follower that can no
+    longer hear it (EXPERIMENTS.md, finding F11).

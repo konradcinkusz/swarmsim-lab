@@ -9,6 +9,11 @@ instead:
     python -m tools.compare_swarms --api http://127.0.0.1:5080 \\
         --base reference --head lab_swarm.swarm:LabSwarm --seeds 3 scenarios
 
+Each swarm is held to its own expectations (``--base-expect``, ``--head-expect``: swarmsim's
+``--expect`` files, expectations/). Without them a scenario file's ``expect`` is the one
+swarm's for both, and the comparison reads a gap that the head swarm fixed as a regression
+(EXPERIMENTS.md, findings F4 and F12).
+
 The runs are stored whole, and so is each report under ``reports/``. A token for an API
 in Enforced mode comes from ``SWARMSIM_API_TOKEN``, as for swarmsim's own ``--upload``.
 """
@@ -27,21 +32,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from swarmsim_path import LAB, use_swarmsim  # noqa: E402
 
 use_swarmsim()
-from swarm_coordination.scenarios import run_suite  # noqa: E402
+from swarm_coordination.scenarios import load_expectations, run_suite  # noqa: E402
 from swarm_coordination.scenarios.runner import to_json  # noqa: E402
 from swarm_coordination.scenarios.upload import TOKEN_VARIABLE, upload_report  # noqa: E402
 
 from tools.sweep import load_sut  # noqa: E402
 
 
-def store(api: str, paths: list[str], reference: str, seeds: list[int], token: str | None):
+def report_for(paths: list[str], reference: str, seeds: list[int], expect: str | None) -> dict:
+    """The suite flown against one swarm, held to the expectations in ``expect``, as JSON."""
+    expectations = load_expectations(expect) if expect else None
+    return to_json(run_suite(paths, load_sut(reference), seeds, expectations=expectations))
+
+
+def store(
+    api: str,
+    paths: list[str],
+    reference: str,
+    seeds: list[int],
+    token: str | None,
+    expect: str | None = None,
+):
     """Runs the suite against one swarm, stores the report, and returns the stored run."""
-    sut = load_sut(reference)
-    report = to_json(run_suite(paths, sut, seeds))
-    out = LAB / "reports" / f"{sut.name.replace('/', '_')}.json"
+    report = report_for(paths, reference, seeds, expect)
+    out = LAB / "reports" / f"{report['sut'].replace('/', '_')}.json"
     out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    return upload_report(api, report, label=f"{sut.name} ({reference})", token=token)
+    return upload_report(api, report, label=f"{report['sut']} ({reference})", token=token)
 
 
 def compare(api: str, base_id: str, head_id: str, token: str | None) -> dict:
@@ -86,13 +103,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--api", required=True, help="a SwarmApi.Api base URL")
     parser.add_argument("--base", default="reference", help="reference or MODULE:ATTR")
     parser.add_argument("--head", required=True, help="reference or MODULE:ATTR")
+    parser.add_argument("--base-expect", help="expectations file for the base swarm")
+    parser.add_argument("--head-expect", help="expectations file for the head swarm")
     parser.add_argument("--seeds", type=int, default=3)
     args = parser.parse_args(argv)
 
     token = os.environ.get(TOKEN_VARIABLE)
     seeds = list(range(1, args.seeds + 1))
-    base = store(args.api, args.paths, args.base, seeds, token)
-    head = store(args.api, args.paths, args.head, seeds, token)
+    base = store(args.api, args.paths, args.base, seeds, token, args.base_expect)
+    head = store(args.api, args.paths, args.head, seeds, token, args.head_expect)
     comparison = compare(args.api, base["id"], head["id"], token)
     (LAB / "reports" / "comparison.json").write_text(
         json.dumps(comparison, indent=2), encoding="utf-8"

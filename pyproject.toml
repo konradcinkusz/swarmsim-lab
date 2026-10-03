@@ -3,7 +3,8 @@ name = "swarmsim-lab"
 version = "0.1.0"
 description = "A swarm tested and adapted with swarmsim's scenario instrument: an example"
 requires-python = ">=3.10"
-# swarmsim's swarm_coordination comes from a checkout, not an install (swarmsim_path.py).
+# swarmsim's swarm_coordination is installed from a checkout of swarmsim, or imported from
+# it (swarmsim_path.py).
 dependencies = []
 
 [tool.ruff]

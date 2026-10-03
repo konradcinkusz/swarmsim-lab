@@ -1,21 +1,25 @@
 """The lab's own scenarios (scenarios/): LabSwarm meets them, and they have teeth.
 
-swarmsim's mutation check refuses a swarm it did not write (finding F1), so the lab has
-its own. Every mutant in lab_swarm/mutants.py undoes one of LabSwarm's decisions and
-must fail at least one scenario. Every scenario that LabSwarm must pass must fail a
-mutant or the reference swarm (all the decisions undone at once), or it proves nothing.
-Seeds 1-3, as in CI; a scenario "fails" a swarm when any seed fails.
+The lab's mutants (lab_swarm/mutants.py) go to swarmsim's mutation check, which flies every
+scenario against them: each scenario LabSwarm passes must fail at least one mutant, and
+each mutant must fail a scenario. The last mutant is the reference swarm, every decision
+undone at once. The lab ran this check itself while swarmsim's refused a swarm it did not
+write (finding F1).
+
+Each swarm's known limitations are its own file, in expectations/ (finding F4): the scenario
+files carry none. Seeds 1-3, as in CI.
 """
 
 from __future__ import annotations
 
 import pytest
-from swarm_coordination.scenarios import ReferenceSwarm, load_scenario, run_scenario, run_suite
+from swarm_coordination.scenarios import ReferenceSwarm, run_suite
+from swarm_coordination.scenarios.runner import to_markdown
 
 from lab_swarm.mutants import MUTANTS
 from lab_swarm.swarm import LabSwarm
 
-SEEDS = (1, 2, 3)
+SEEDS = [1, 2, 3]
 REFERENCE_FAILS = {
     "v_five_from_pads",
     "v_after_lanes",
@@ -25,57 +29,53 @@ REFERENCE_FAILS = {
 
 
 @pytest.fixture(scope="module")
-def specs(lab_scenarios):
-    return {p.stem: load_scenario(p) for p in sorted(lab_scenarios.glob("*.yaml"))}
+def suite(lab_scenarios, lab_expectations):
+    """swarmsim's runner on the lab's scenarios: LabSwarm, its expectations, its mutants."""
+    return run_suite(
+        [lab_scenarios],
+        LabSwarm(),
+        SEEDS,
+        mutation=True,
+        mutants=MUTANTS,
+        expectations=lab_expectations,
+    )
 
 
-def _passes(spec, sut) -> bool:
-    return all(run_scenario(spec, sut, seed)[0].passed for seed in SEEDS)
+def test_lab_swarm_meets_every_expectation_and_every_scenario_has_teeth(suite):
+    assert suite.ok, to_markdown(suite)
+    assert not suite.survivors()
+    assert not [s.spec.name for s in suite.scenarios if s.toothless]
 
 
-def test_lab_swarm_meets_every_expectation(specs):
-    unmet = [
-        name for name, spec in specs.items() if _passes(spec, LabSwarm()) != (spec.expect == "pass")
-    ]
-    assert unmet == []
+def test_each_decision_is_caught_by_the_scenario_written_for_it(suite):
+    killed = {s.spec.name: set(s.killed_by or []) for s in suite.scenarios}
+    assert "no_form_up" in killed["line_beside_the_pads"]
+    assert "latest_position" in killed["v_five_very_noisy_gps"]
+    assert "closest_tie" in killed["line_five_from_pads"]
+    assert "reference_handover" in killed["v_low_battery_drone_2"]
+    assert "id_order_roles" in killed["v_five_from_pads"]
 
 
-@pytest.fixture(scope="module")
-def killed_by(specs):
-    """For each mutant, the scenarios (that LabSwarm must pass) which it fails."""
-    return {
-        name: {s for s, spec in specs.items() if spec.expect == "pass" and not _passes(spec, sut)}
-        for name, sut in MUTANTS.items()
-    }
-
-
-def test_every_mutant_fails_a_scenario(killed_by):
-    assert [name for name, scenarios in killed_by.items() if not scenarios] == []
-
-
-def test_every_scenario_fails_a_mutant_or_the_reference(specs, killed_by):
-    teeth = set().union(*killed_by.values()) | REFERENCE_FAILS
-    assert [s for s, spec in specs.items() if spec.expect == "pass" and s not in teeth] == []
-
-
-def test_each_decision_is_caught_by_the_scenario_written_for_it(killed_by):
-    assert "line_beside_the_pads" in killed_by["no_form_up"]
-    assert "v_five_very_noisy_gps" in killed_by["latest_position"]
-    assert "line_five_from_pads" in killed_by["closest_tie"]
-    assert "v_low_battery_drone_2" in killed_by["reference_handover"]
-    assert "v_five_from_pads" in killed_by["id_order_roles"]
-
-
-def test_the_reference_swarm_fails_what_the_lab_fixed(specs):
-    failed = {name for name, spec in specs.items() if not _passes(spec, ReferenceSwarm())}
+def test_the_reference_swarm_fails_what_the_lab_fixed(lab_scenarios, reference_expectations):
+    report = run_suite(
+        [lab_scenarios], ReferenceSwarm(), SEEDS, expectations=reference_expectations
+    )
+    failed = {s.spec.name for s in report.scenarios if s.outcome == "xfail"}
     assert failed == REFERENCE_FAILS
+    assert report.ok, to_markdown(report)
 
 
-def test_an_expect_fail_is_the_lab_swarms_and_the_reference_turns_it_into_an_xpass(lab_scenarios):
-    """F4: ``expect`` belongs to the scenario file, not to the swarm under test. The
-    lab's known limitation is one the reference doesn't have, so the lab's suite fails
-    the reference on it."""
-    report = run_suite([lab_scenarios / "line_five_noisy_gps.yaml"], ReferenceSwarm(), list(SEEDS))
-    (scenario,) = report.scenarios
-    assert scenario.outcome == "xpass"
-    assert not report.ok
+def test_a_known_limitation_is_a_swarms_and_the_scenario_file_says_nothing(
+    lab_scenarios, lab_expectations
+):
+    """F4: ``line_five_noisy_gps`` is LabSwarm's gap and not the reference's. Under LabSwarm's
+    file it is an expected failure; under the scenario file's own expectation, which is the
+    reference's, it passes. Before swarmsim took an expectations file per swarm, the lab's
+    ``expect: fail`` in the scenario made the reference swarm's run an xpass, and a failed suite."""
+    path = [lab_scenarios / "line_five_noisy_gps.yaml"]
+
+    (lab,) = run_suite(path, LabSwarm(), SEEDS, expectations=lab_expectations).scenarios
+    (reference,) = run_suite(path, ReferenceSwarm(), SEEDS).scenarios
+
+    assert lab.outcome == "xfail" and lab.spec.expect_reason
+    assert reference.outcome == "passed"

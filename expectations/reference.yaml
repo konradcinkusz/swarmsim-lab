@@ -1,0 +1,26 @@
+# What swarmsim's reference swarm is expected to fail, among the lab's scenarios and
+# swarmsim's own. Most are the scenarios the lab wrote because the reference fails them
+# (EXPERIMENTS.md, E3). The last is swarmsim's one known limitation.
+#
+# With this file the run of the reference swarm and the run of LabSwarm
+# (expectations/lab.yaml) each meet their own expectations, and swarmsim's comparison
+# reads a scenario that went from one swarm's gap to the other's pass as changed, not as a
+# regression (EXPERIMENTS.md, findings F4 and F12).
+version: 1
+expect_fail:
+  v_five_from_pads: >
+    The lowest id leads from the end of the row of pads, so half of the V has to cross to
+    the other side of it: 0.41 m closest approach.
+  v_after_lanes: >
+    A V that supersedes lanes in mid-air forms from a moving row, and the reference gives
+    its roles in id order: 0.42 m.
+  v_low_battery_drone_1: >
+    When the V's leader runs low the reference hands the lead to the idle drone on its
+    pad, and the whole formation turns back towards that pad: 1.56 m.
+  v_five_very_noisy_gps: >
+    As in v_five_from_pads, with 1.5 m of GPS noise on every axis: 0.35 m in the worst
+    seed.
+  v_formation_from_pads: >
+    The reference swarm assigns formation slots without looking at where the drones start
+    and has no deconfliction in flight, so a V launched from a row of pads makes a
+    follower cross its neighbours (0.48 m). It is swarmsim's own expect: fail.

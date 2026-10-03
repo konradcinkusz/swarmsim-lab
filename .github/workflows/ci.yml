@@ -23,7 +23,7 @@ defaults:
 # the tests say what the new commit broke. `uses:` cannot read an expression, so the
 # scenarios job repeats it.
 env:
-  SWARMSIM_REF: 56e150be669477db23a274a835503d41e65c8ee8
+  SWARMSIM_REF: da0c6514b17ee7ab5b5a4f659f091bc64c6de831
 
 jobs:
   tests:
@@ -32,8 +32,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # swarmsim's scenario runner is not pip-installable (EXPERIMENTS.md, F2): the lab
-      # imports it from a checkout, as swarmsim's own Action does.
+      # The checkout is for swarmsim's scenarios, which are not part of its package, and the
+      # runner is installed from it, as any other repository can (EXPERIMENTS.md, F2).
       - uses: actions/checkout@v7
         with:
           repository: konradcinkusz/swarmsim
@@ -44,8 +44,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+      - name: Install swarmsim's runner and the lab's dependencies
+        run: pip install ./swarmsim/swarm_coordination -r requirements-dev.txt
 
       - name: ruff
         run: ruff check . && ruff format --check .
@@ -60,13 +60,29 @@ jobs:
       - uses: actions/checkout@v7
 
       # The same check any repository can run on its own swarm: the scenarios fly inside
-      # this job, and nothing is sent anywhere. swarmsim's mutation check is for its own
-      # swarm only (F1); tests/test_lab_scenarios.py is the lab's.
-      - uses: konradcinkusz/swarmsim@56e150be669477db23a274a835503d41e65c8ee8
+      # this job, and nothing is sent anywhere. LabSwarm is held to its own expectations
+      # (F4), and the mutation check runs on the lab's mutants (F1): every scenario must
+      # fail one, every mutant must fail a scenario.
+      - name: The lab's scenarios, with its expectations and its mutants
+        uses: konradcinkusz/swarmsim@da0c6514b17ee7ab5b5a4f659f091bc64c6de831
         with:
           scenarios: scenarios
           sut: lab_swarm.swarm:LabSwarm
+          expect: expectations/lab.yaml
+          mutants-from: lab_swarm.mutants:MUTANTS
           seeds: "3"
+
+      # swarmsim's own scenarios, which the action carries (F5), on LabSwarm: all but the
+      # one that jams its leader (F11), which expectations/lab.yaml writes down.
+      - name: swarmsim's scenarios on LabSwarm
+        uses: konradcinkusz/swarmsim@da0c6514b17ee7ab5b5a4f659f091bc64c6de831
+        with:
+          scenarios: ""
+          include-swarmsim-scenarios: "true"
+          sut: lab_swarm.swarm:LabSwarm
+          expect: expectations/lab.yaml
+          seeds: "3"
+          junit-path: swarmsim-scenarios-on-lab.xml
 
   compare:
     name: Reference vs LabSwarm, compared by SwarmApi
@@ -88,8 +104,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install pyyaml jsonschema
+      - name: Install swarmsim's runner
+        run: pip install ./swarmsim/swarm_coordination pyyaml jsonschema
 
       # Open mode, runs kept in memory: a throwaway API that lives as long as this job.
       - name: Start SwarmApi
@@ -109,8 +125,9 @@ jobs:
             echo "## Reference vs LabSwarm (SwarmApi's comparison)"
             echo
             python -m tools.compare_swarms --api http://127.0.0.1:5080 \
-              --base reference --head lab_swarm.swarm:LabSwarm --seeds 3 \
-              scenarios swarmsim/scenarios
+              --base reference --base-expect expectations/reference.yaml \
+              --head lab_swarm.swarm:LabSwarm --head-expect expectations/lab.yaml \
+              --seeds 3 scenarios swarmsim/scenarios
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Keep the reports
