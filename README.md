@@ -118,7 +118,7 @@ swarmsim's root `action.yml` runs scenarios inside the caller's job and sends no
 anywhere. Pin it to a commit:
 
 ```yaml
-- uses: konradcinkusz/swarmsim@5b93cddca74ab99d411201fb0401eba7061edb04
+- uses: konradcinkusz/swarmsim@da0c6514b17ee7ab5b5a4f659f091bc64c6de831
   with:
     scenarios: scenarios
     sut: lab_swarm.swarm:LabSwarm
@@ -148,7 +148,7 @@ checkout:
 
 ```bash
 git clone https://github.com/konradcinkusz/swarmsim ../swarmsim
-git -C ../swarmsim checkout 5b93cddca74ab99d411201fb0401eba7061edb04
+git -C ../swarmsim checkout da0c6514b17ee7ab5b5a4f659f091bc64c6de831
 pip install ../swarmsim/swarm_coordination -r requirements-dev.txt
 
 ruff check . && pytest                        # 34 tests, about 20 s

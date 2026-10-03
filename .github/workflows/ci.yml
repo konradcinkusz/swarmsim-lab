@@ -23,7 +23,7 @@ defaults:
 # the tests say what the new commit broke. `uses:` cannot read an expression, so the
 # scenarios job repeats it.
 env:
-  SWARMSIM_REF: 5b93cddca74ab99d411201fb0401eba7061edb04
+  SWARMSIM_REF: da0c6514b17ee7ab5b5a4f659f091bc64c6de831
 
 jobs:
   tests:
@@ -64,7 +64,7 @@ jobs:
       # (F4), and the mutation check runs on the lab's mutants (F1): every scenario must
       # fail one, every mutant must fail a scenario.
       - name: The lab's scenarios, with its expectations and its mutants
-        uses: konradcinkusz/swarmsim@5b93cddca74ab99d411201fb0401eba7061edb04
+        uses: konradcinkusz/swarmsim@da0c6514b17ee7ab5b5a4f659f091bc64c6de831
         with:
           scenarios: scenarios
           sut: lab_swarm.swarm:LabSwarm
@@ -75,7 +75,7 @@ jobs:
       # swarmsim's own scenarios, which the action carries (F5), on LabSwarm: all but the
       # one that jams its leader (F11), which expectations/lab.yaml writes down.
       - name: swarmsim's scenarios on LabSwarm
-        uses: konradcinkusz/swarmsim@5b93cddca74ab99d411201fb0401eba7061edb04
+        uses: konradcinkusz/swarmsim@da0c6514b17ee7ab5b5a4f659f091bc64c6de831
         with:
           scenarios: ""
           include-swarmsim-scenarios: "true"

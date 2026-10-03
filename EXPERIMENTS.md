@@ -4,7 +4,7 @@ Every number here was measured in swarmsim's L0 simulator. E0–E4 were measured
 commit
 [`56e150b`](https://github.com/konradcinkusz/swarmsim/commit/56e150be669477db23a274a835503d41e65c8ee8),
 before the fixes that came out of them. E5 and `.github/workflows/ci.yml` use
-[`5b93cdd`](https://github.com/konradcinkusz/swarmsim/commit/5b93cddca74ab99d411201fb0401eba7061edb04),
+[`da0c651`](https://github.com/konradcinkusz/swarmsim/commit/da0c6514b17ee7ab5b5a4f659f091bc64c6de831),
 which has them. **Closest approach** is the smallest distance between two airborne
 drones, from swarmsim's `min_separation` assertion. "Worst" is the worst seed and
 "median" the median seed. A ✗ marks a failed assertion.
@@ -287,7 +287,7 @@ The comparison was designed for two commits of one swarm. There, the scenario's
 
 Eight of the twelve findings became pull requests to swarmsim, one at a time, each merged
 when all eleven of its checks were green, the SITL smoke included (#36–#43). E5 moves the
-lab to the commit that has them, `5b93cdd`, and uses what they gave it. Seven of the
+lab to the commit that has them, `da0c651`, and uses what they gave it. Seven of the
 lab's tests failed on the new commit, all of them tests that pinned the old behaviour:
 what MinimalSwarm failed (F9, F10), LabSwarm's `formation_error` (F3), `follower_comms_blip`
 measuring nothing (F10). The other 30 passed unchanged.
