@@ -65,8 +65,9 @@ whose fields are the parts, so a variant is a subclass, or a `replace()` with on
 swapped, and its planning is a `planner=` function (F8).
 [`lab_swarm/swarm.py`](lab_swarm/swarm.py) plugs in a planner for formations, and keeps a
 supervisor subclass to average a parked drone's reports and to re-plan a leader's hand-over,
-which swarmsim has no seam for; the drones fly swarmsim's controller unchanged. The planner [`lab_swarm/planning.py`](lab_swarm/planning.py) is pure
-and unit tested. It does four things:
+which swarmsim has no seam for; the drones fly swarmsim's controller unchanged. The planner,
+[`lab_swarm/planning.py`](lab_swarm/planning.py), is pure and unit tested. It does four
+things:
 
 - chooses who leads and which slot each drone takes from where the drones are;
 - forms up before flying;
@@ -150,7 +151,7 @@ git clone https://github.com/konradcinkusz/swarmsim ../swarmsim
 git -C ../swarmsim checkout 5b93cddca74ab99d411201fb0401eba7061edb04
 pip install ../swarmsim/swarm_coordination -r requirements-dev.txt
 
-ruff check . && pytest                        # 33 tests, about 20 s
+ruff check . && pytest                        # 34 tests, about 20 s
 
 # the lab's scenarios on LabSwarm, the way CI's Action runs them
 python -m swarm_coordination.scenarios run scenarios --sut lab_swarm.swarm:LabSwarm \
