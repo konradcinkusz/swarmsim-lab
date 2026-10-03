@@ -23,3 +23,19 @@ def swarmsim_scenarios() -> Path:
 @pytest.fixture(scope="session")
 def lab_scenarios() -> Path:
     return LAB / "scenarios"
+
+
+@pytest.fixture(scope="session")
+def lab_expectations():
+    """What LabSwarm is expected to fail (expectations/lab.yaml)."""
+    from swarm_coordination.scenarios import load_expectations
+
+    return load_expectations(LAB / "expectations" / "lab.yaml")
+
+
+@pytest.fixture(scope="session")
+def reference_expectations():
+    """What swarmsim's reference swarm is expected to fail (expectations/reference.yaml)."""
+    from swarm_coordination.scenarios import load_expectations
+
+    return load_expectations(LAB / "expectations" / "reference.yaml")

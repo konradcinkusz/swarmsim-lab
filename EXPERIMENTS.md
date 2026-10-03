@@ -1,10 +1,13 @@
 # Lab notebook
 
-Every number here was measured in swarmsim's L0 simulator at swarmsim commit
+Every number here was measured in swarmsim's L0 simulator. E0–E4 were measured at swarmsim
+commit
 [`56e150b`](https://github.com/konradcinkusz/swarmsim/commit/56e150be669477db23a274a835503d41e65c8ee8),
-the one `.github/workflows/ci.yml` pins. **Closest approach** is the smallest distance
-between two airborne drones, from swarmsim's `min_separation` assertion. "Worst" is the
-worst seed and "median" the median seed. A ✗ marks a failed assertion.
+before the fixes that came out of them. E5 and `.github/workflows/ci.yml` use
+[`5b93cdd`](https://github.com/konradcinkusz/swarmsim/commit/5b93cddca74ab99d411201fb0401eba7061edb04),
+which has them. **Closest approach** is the smallest distance between two airborne
+drones, from swarmsim's `min_separation` assertion. "Worst" is the worst seed and
+"median" the median seed. A ✗ marks a failed assertion.
 
 Each experiment is one commit, so its numbers can be rerun from that commit (see
 `git log`):
@@ -76,14 +79,15 @@ one by one:
 | `formation_line`, `formation_line_in_wind`, `follower_comms_blip` | `mission_completes` | it ignores formation missions |
 | `v_formation_from_pads` | `mission_completes` (an xfail) | likewise |
 | `low_battery_handover`, `plan_around_low_battery` | battery and position checks | it has no battery policy |
-| `follower_jammed_goes_home` | `final_position` only | nobody takes off, and four of five assertions pass anyway (**F9**) |
+| `follower_jammed_goes_home` | `final_position` only | nobody takes off, and four of five assertions pass anyway (**F9**, **F10**) |
 | `operator_land_in_place` | `final_position` | it *does* land in place, but not where the reference swarm is (**F9**) |
 
 The last row is the interesting one. MinimalSwarm cruises at PX4's 5 m/s, so at 15 s,
 when "land" comes, it is at x = 42 m. It lands 0.5 m from there. The scenario checks
 that drone_1 ends within 6 m of x = 16 m. That is where the reference swarm, cruising
-at 2 m/s, has got to. `lab_swarm.metrics.travel_after` measures the intent, "stop where
-the command found you". Both swarms meet it, by less than 1 m.
+at 2 m/s, has got to. The lab measured the intent, "stop where the command found you",
+with a metric of its own. Both swarms met it, by less than 1 m. swarmsim has it as an
+assertion now, `travel_after`, and MinimalSwarm passes the scenario (E5).
 
 ## E2: formation roles from where the drones are
 
@@ -205,8 +209,8 @@ What it costs:
 ## E3: the lab's scenarios and its own mutation check
 
 `scenarios/` holds eight scenarios, each there to catch something. swarmsim's mutation
-check refuses a swarm it did not write (**F1**), so `tests/test_lab_scenarios.py` is the
-lab's own. It enforces two rules:
+check refused a swarm it did not write (**F1**), so `tests/test_lab_scenarios.py` was the
+lab's own. Since E5 swarmsim's check runs on the lab's mutants. It enforced two rules:
 
 - Each mutant in `lab_swarm/mutants.py` undoes one of E2b's decisions, and must fail
   some scenario.
@@ -236,16 +240,18 @@ the vacated slot. That held on every scenario tried, including five-drone Vs (2.
 against 2.29 m, both clear). So LabSwarm uses the reference's, and only a leader's
 hand-over is re-planned.
 
-**swarmsim's own suite against LabSwarm** (`tests/test_swarmsim_suite_on_lab.py`). Every
-failure is the scenario's, not the swarm's:
+**swarmsim's own suite against LabSwarm** (`tests/test_swarmsim_suite_on_lab.py`), as of
+swarmsim `56e150b`. Every failure is the scenario's, not the swarm's. Three of the four
+are fixed in swarmsim (E5):
 
 - `formation_line` and `formation_line_in_wind` fail `formation_error` (**F3**).
 - `follower_jammed_goes_home` fails because it jams LabSwarm's leader (**F11**).
 - `v_formation_from_pads` passes, and the xpass fails the suite (**F4**).
 
-A role-free measure, `lab_swarm.metrics.formation_shape_error`, puts LabSwarm's line at
-2.20 m from its shape. `formation_error` says 17.2 m. On the reference swarm the two
-measures agree, at 2.20 m.
+A role-free measure, which the lab wrote then (`formation_shape_error`), put LabSwarm's
+line at 2.20 m from its shape. `formation_error` said 17.2 m. On the reference swarm the
+two measures agreed, at 2.20 m. swarmsim's `formation_error` is role-free now (E5), and
+the lab's measure is gone.
 
 ## E4: two swarms compared by SwarmApi
 
@@ -277,30 +283,100 @@ The comparison was designed for two commits of one swarm. There, the scenario's
 `expect` is right for both runs; across two swarms it is right for neither. CI's
 `compare` job repeats this run on every push and writes the table to the job summary.
 
+## E5: adopting swarmsim's fixes
+
+Eight of the twelve findings became pull requests to swarmsim, one at a time, each merged
+when all eleven of its checks were green, the SITL smoke included (#36–#43). E5 moves the
+lab to the commit that has them, `5b93cdd`, and uses what they gave it. Seven of the
+lab's tests failed on the new commit, all of them tests that pinned the old behaviour:
+what MinimalSwarm failed (F9, F10), LabSwarm's `formation_error` (F3), `follower_comms_blip`
+measuring nothing (F10). The other 30 passed unchanged.
+
+**LabSwarm on the planner seam (F8).** LabSwarm used to plan a mission by rewriting the
+supervisor's private plan after its `start()`. Its start-time planning is a swarmsim
+`Planner` now (`formation_planner`), which the supervisor asks. The subclass keeps the
+position averaging, as an override of the public `observe_position`, and the leader's
+hand-over, which swarmsim has no seam for. The refactor changes nothing that the lab
+measures. LabSwarm's traces, the old swarm against the new one, are identical over 23
+scenarios (swarmsim's 10, the lab's 8 and E0's 5) and seeds 1–3: 69 of 69. Its five
+mutants are identical too, over the same scenarios on seed 1: 115 of 115.
+
+**The mutation check on swarmsim's code (F1).** The lab's `MUTANTS` are swarmsim's `Mutant`s
+now, with the reference swarm as a sixth: every decision undone at once. swarmsim's check
+over the lab's eight scenarios catches 6 of 6. Every scenario that passes fails at least
+one mutant, and each decision is caught by the scenario written for it, which is what the
+lab's own check had concluded with its own code. That code is gone.
+
+**Expectations per swarm (F4).** `expectations/lab.yaml` has LabSwarm's two known failures,
+`line_five_noisy_gps` and `follower_jammed_goes_home`. `expectations/reference.yaml` has
+the reference swarm's five: the four lab scenarios it fails, and swarmsim's own. The lab's
+scenario files carry no `expect` any more. swarmsim's suite on LabSwarm, 3 seeds, passes
+under `lab.yaml` (9 passed, 1 xfail). Under the scenario files' own `expect`, which is the
+reference swarm's, it failed (8 passed, 1 failed, 1 xpass).
+
+**The comparison, with each swarm held to its own expectations (F4, F12).** The E4 run again
+(the lab's 8 scenarios and swarmsim's 10, seeds 1–3), against an API built from the
+same swarmsim commit:
+
+| Scenario | Base | Head | API says | Closest approach, mean |
+|---|---|---|---|---|
+| `v_after_lanes` | xfail | passed | **changed** | 0.42 → 3.00 m |
+| `v_five_from_pads` | xfail | passed | **changed** | 0.41 → 3.03 m |
+| `v_five_very_noisy_gps` | xfail | passed | **changed** | 0.45 → 2.93 m |
+| `v_low_battery_drone_1` | xfail | passed | **changed** | 1.56 → 5.14 m |
+| `v_formation_from_pads` | xfail | passed | **changed** | 0.48 → 3.14 m |
+| `line_five_noisy_gps` | passed | xfail | **changed** | 2.11 → 2.00 m |
+| `follower_jammed_goes_home` | passed | xfail | **changed** | 2.12 → 2.44 m |
+| eleven others | | | unchanged | |
+
+Both runs meet their expectations: the reference swarm's 13 passed and 5 xfail, LabSwarm's
+16 passed and 2 xfail. Nothing is called a regression, and every change is a scenario
+where one swarm's known gap is the other's pass, which is what `changed` means. E4's table
+had four regressions and five fixes, and five of the nine were artefacts. The API has no word
+other than `changed` for an xfail that became a pass, and the closest-approach column says
+which way it went.
+
+**What went.** `lab_swarm/metrics.py`: `formation_shape_error` is swarmsim's `formation_error`
+(F3), and `travel_after` is swarmsim's assertion of that name (F9). `LabGround`, which fed
+positions to the supervisor, is swarmsim's `ReferenceGround` (F8). The `PYTHONPATH` on a
+checkout is a `pip install` of the runner (F2), in CI too. The checkout stays, for
+swarmsim's scenarios, which are not in the package, and for its API.
+
+**What stayed.** F11: `follower_jammed_goes_home` still jams LabSwarm's leader, and is the
+one failure that `expectations/lab.yaml` writes down about swarmsim's suite. Fixing it
+means role selectors in events and assertions (the harness could read them from the
+assignment and slot messages the ground sends, which needs no contract change), a way to
+say "its own pad", and a guard against a fault that hit nobody. That is more vocabulary
+than one scenario justifies, and F4 gives a swarm a way to live with it. F6 (SITL) is
+untouched.
+
 ## Findings about swarmsim
 
 Each finding comes with evidence from the experiments above and a change to swarmsim
 that would address it. None of them is a bug in the reference swarm's flying. They are
-about using swarmsim from the outside, which is what this lab tried.
+about using swarmsim from the outside, which is what this lab tried. Each change was
+made as its own pull request to swarmsim and merged when its CI was green, including
+the SITL smoke. The last column is where each stands (E5).
 
-| # | Finding | Evidence | Proposed change in swarmsim |
-|---|---|---|---|
-| F1 | `--mutants` refuses `--sut`: an external swarm gets no mutation check. | The lab wrote its own: `lab_swarm/mutants.py`, `tests/test_lab_scenarios.py`. | `--mutants MODULE:ATTR` loading a list of `Mutant`s. `run_suite` already runs them. |
-| F2 | The scenario runner cannot be pip-installed. `spec.SCHEMA_PATH` is `parents[3]/contracts/...`. | `pip install ./swarm_coordination`, then `load_scenario` raises `FileNotFoundError: .../lib/python3.11/contracts/scenario/scenario.v1.schema.json`. | Ship the schema as package data (`importlib.resources`), with a test that it equals `contracts/`. |
-| F3 | `formation_error` assumes the reference's roles: `drone_1` leads and the rest hold the slots in id order. | LabSwarm's line: 17.2 m by `formation_error`, 2.20 m by a role-free fit. The two agree (2.20 m) on the reference. | Make it role-free, as in `lab_swarm.metrics.formation_shape_error`, or read the roles from the reported swarm state. |
-| F4 | `expect` belongs to the scenario file, not to the (scenario, swarm) pair. | LabSwarm fixes `v_formation_from_pads` and fails swarmsim's suite with an xpass. The lab's `expect: fail` does the same to the reference. | Expectations per swarm, for example `--expect FILE` mapping scenario to outcome, defaulting to pass. |
-| F5 | The Action runs only the caller's scenarios. Running swarmsim's own suite means checking swarmsim out yourself, and then F4 fails it. | This lab's `tests` job checks swarmsim out to reach its scenarios. | An `include-swarmsim-scenarios` input, useful once F4 is fixed. |
-| F6 | There is no L1 (SITL) path for another swarm. The SITL smoke flies swarmsim's own nodes. | Nothing in this lab has flown in SITL. | Let `mission_dispatcher_node` load its supervisor class by name, and feed it positions. LabSwarm's changes are all in the supervisor. |
-| F7 | Assertions are a closed set, so a new kind means a change to swarmsim and its schema. | The lab's role-free formation check and its "stopped where the command found it" check run in pytest, where neither the Action nor the API sees them. | Add `formation_shape` and `travel_after` kinds, or a plugin point for assertions. |
-| F8 | `MissionSupervisor` has no planning hook. | `FormationAwareSupervisor` re-plans by rewriting the private `_mission.plan` and overriding the private `_hand_over`. | `MissionSupervisor(planner=...)`, a callable `(mission, drones, positions) -> MissionPlan`, plus `observe_position`. |
-| F9 | Assertions on absolute end states encode the reference's timing, and pass for a swarm that never flew. | `operator_land_in_place` pins x = 16 m, the reference's 2 m/s; MinimalSwarm lands 0.5 m from where "land" found it and fails. In `follower_jammed_goes_home`, a grounded swarm passes 4 of 5 assertions. | A `travel_after: {event, max_m}` kind; every scenario asserts something only a flying swarm can meet. |
-| F10 | An assertion with nothing to measure passes. | `follower_comms_blip` checks `formation_error` from 40 s; the formation lands at 37.1 s. It measures `None` on every seed, for the reference too. From 31 s it would measure 2.42 m and catch the `no_frame_conversion` mutant (6.47 m), which it lets through today. | A check with no qualifying frame fails. The window becomes `from_s: 31, to_s: 37`. |
-| F11 | Faults and position checks name drones, meaning the roles the reference gives them. | `follower_jammed_goes_home` jams drone_2 and drone_3 to jam "the followers"; LabSwarm's line is led by drone_2. | Role-addressed targets (`{role: leader}`), resolved from roles the swarm state reports. |
-| F12 | SwarmApi's comparison across two swarms inherits F3, F4 and F11. | Five of its nine changes, reference → LabSwarm, are artefacts. A 0.48 → 3.14 m improvement is called "regressed". | With F4 fixed, compare each run against its own expectations, and flag a scenario whose expectation differs between runs. |
+| # | Finding | Evidence | Proposed change in swarmsim | Status |
+|---|---|---|---|---|
+| F1 | `--mutants` refuses `--sut`: an external swarm gets no mutation check. | The lab wrote its own: `lab_swarm/mutants.py`, `tests/test_lab_scenarios.py`. | `--mutants MODULE:ATTR` loading a list of `Mutant`s. `run_suite` already runs them. | **Fixed**, swarmsim #41: `--mutants-from MODULE:ATTR`, and the action's `mutants-from`. The lab uses it (E5). |
+| F2 | The scenario runner cannot be pip-installed. `spec.SCHEMA_PATH` is `parents[3]/contracts/...`. | `pip install ./swarm_coordination`, then `load_scenario` raises `FileNotFoundError: .../lib/python3.11/contracts/scenario/scenario.v1.schema.json`. | Ship the schema as package data (`importlib.resources`), with a test that it equals `contracts/`. | **Fixed**, swarmsim #37: the schema ships in the package. The lab's CI pip-installs the runner. |
+| F3 | `formation_error` assumes the reference's roles: `drone_1` leads and the rest hold the slots in id order. | LabSwarm's line: 17.2 m by `formation_error`, 2.20 m by a role-free fit. The two agree (2.20 m) on the reference. | Make it role-free, as in `lab_swarm.metrics.formation_shape_error`, or read the roles from the reported swarm state. | **Fixed**, swarmsim #38: `formation_error` fits the closest shape, some drone as the apex, with a bottleneck assignment. The lab's metric is gone. |
+| F4 | `expect` belongs to the scenario file, not to the (scenario, swarm) pair. | LabSwarm fixes `v_formation_from_pads` and fails swarmsim's suite with an xpass. The lab's `expect: fail` does the same to the reference. | Expectations per swarm, for example `--expect FILE` mapping scenario to outcome, defaulting to pass. | **Fixed**, swarmsim #39: `--expect FILE`, and the action's `expect`. `expectations/` has the lab's two. |
+| F5 | The Action runs only the caller's scenarios. Running swarmsim's own suite means checking swarmsim out yourself, and then F4 fails it. | This lab's `tests` job checks swarmsim out to reach its scenarios. | An `include-swarmsim-scenarios` input, useful once F4 is fixed. | **Fixed**, swarmsim #40: `include-swarmsim-scenarios`. CI uses it. |
+| F6 | There is no L1 (SITL) path for another swarm. The SITL smoke flies swarmsim's own nodes. | Nothing in this lab has flown in SITL. | Let `mission_dispatcher_node` load its supervisor class by name, and feed it positions. LabSwarm's changes are all in the supervisor. | Open. Out of scope for swarmsim's L0 work: it needs the dispatcher node to load a planner by name. |
+| F7 | Assertions are a closed set, so a new kind means a change to swarmsim and its schema. | The lab's role-free formation check and its "stopped where the command found it" check run in pytest, where neither the Action nor the API sees them. | Add `formation_shape` and `travel_after` kinds, or a plugin point for assertions. | The two kinds the lab needed are in: the role-free formation check (#38) and `travel_after` (#42). No plugin point was built: a new kind is still a change to swarmsim and its schema. |
+| F8 | `MissionSupervisor` has no planning hook. | `FormationAwareSupervisor` re-plans by rewriting the private `_mission.plan` and overriding the private `_hand_over`. | `MissionSupervisor(planner=...)`, a callable `(mission, drones, positions) -> MissionPlan`, plus `observe_position`. | **Fixed**, swarmsim #43: `MissionSupervisor(planner=...)`, `observe_position`, and `ReferenceSwarm(planner=...)`. A hand-over has no seam yet. |
+| F9 | Assertions on absolute end states encode the reference's timing, and pass for a swarm that never flew. | `operator_land_in_place` pins x = 16 m, the reference's 2 m/s; MinimalSwarm lands 0.5 m from where "land" found it and fails. In `follower_jammed_goes_home`, a grounded swarm passes 4 of 5 assertions. | A `travel_after: {event, max_m}` kind; every scenario asserts something only a flying swarm can meet. | **Fixed**, swarmsim #42: `travel_after`, `operator_land_in_place` uses it, and a test that no scenario passes for a swarm that never flies. |
+| F10 | An assertion with nothing to measure passes. | `follower_comms_blip` checks `formation_error` from 40 s; the formation lands at 37.1 s. It measures `None` on every seed, for the reference too. From 31 s it would measure 2.42 m and catch the `no_frame_conversion` mutant (6.47 m), which it lets through today. | A check with no qualifying frame fails. The window becomes `from_s: 31, to_s: 37`. | **Fixed**, swarmsim #36: a distance check that measured nothing fails. `follower_comms_blip`'s window starts at 32 s. |
+| F11 | Faults and position checks name drones, meaning the roles the reference gives them. | `follower_jammed_goes_home` jams drone_2 and drone_3 to jam "the followers"; LabSwarm's line is led by drone_2. | Role-addressed targets (`{role: leader}`), resolved from roles the swarm state reports. | Open. `expectations/lab.yaml` records `follower_jammed_goes_home` as an expected failure, with this reason. A fix needs role selectors in events and assertions, and a way to say "its own pad". |
+| F12 | SwarmApi's comparison across two swarms inherits F3, F4 and F11. | Five of its nine changes, reference → LabSwarm, are artefacts. A 0.48 → 3.14 m improvement is called "regressed". | With F4 fixed, compare each run against its own expectations, and flag a scenario whose expectation differs between runs. | **Resolved by F4**: each run carries its own expectations, so the API reads a changed expectation as `changed`, not `regressed` (E5). |
 
 ## The lab's own known limitations
 
-- **Lines in GPS noise.** `line_five_noisy_gps` is an `expect: fail`. LabSwarm falls
+- **Lines in GPS noise.** `line_five_noisy_gps` is an expected failure in
+  `expectations/lab.yaml`. LabSwarm falls
   under 2 m on 12 of 20 seeds (worst 1.81 m); the reference does on 1 of 20 (1.99 m). In
   `formation_line_in_wind` its worst seed is 1.88 m against the reference's 2.08 m,
   though its median is better (2.42 m against 2.12 m).
